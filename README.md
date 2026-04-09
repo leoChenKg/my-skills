@@ -10,16 +10,16 @@
 
 ```bash
 # 交互式选择安装哪些 skill
-npx skills add sunshine/my-skills
+npx skills add leoChenKg/my-skills
 
 # 安装全部
-npx skills add sunshine/my-skills --all
+npx skills add leoChenKg/my-skills --all
 
 # 全局安装（所有项目可用）
-npx skills add sunshine/my-skills -g
+npx skills add leoChenKg/my-skills -g
 
 # 只安装到指定工具
-npx skills add sunshine/my-skills -a cursor -a claude-code
+npx skills add leoChenKg/my-skills -a cursor -a claude-code
 ```
 
 ## Skills 列表
