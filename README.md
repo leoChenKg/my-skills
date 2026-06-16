@@ -26,6 +26,7 @@ npx skills add leoChenKg/my-skills -a cursor -a claude-code
 
 | Skill | 描述 |
 |-------|------|
+| [figma-to-code](./skills/figma-to-code/) | 将 Figma 设计稿转换为保真、可验证、复用现有组件的前端代码 |
 | [spec-driven-learning](./skills/spec-driven-learning/) | 使用 OpenSpec 结构管理系统性技术学习项目 |
 
 ## 目录结构
@@ -35,7 +36,7 @@ my-skills/
 └── skills/
     └── <skill-name>/
         ├── SKILL.md          # 必须，包含 name、description frontmatter
-        ├── reference.md      # 可选，详细参考文档
+        ├── references/       # 可选，详细参考文档
         └── scripts/          # 可选，辅助脚本
 ```
 
