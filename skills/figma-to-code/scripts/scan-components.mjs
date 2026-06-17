@@ -66,6 +66,34 @@ function walk(dir, acc = []) {
 // 是否是合法组件名（PascalCase，首字母大写）
 const isComponentName = (n) => /^[A-Z][A-Za-z0-9]*$/.test(n);
 
+// 剥离 // 行注释与 /* */ 块注释，避免注释/文档里的示例 `export {...}` 被误判为组件。
+// 字符串/模板字面量内容原样保留（含路径），且字符串里的 // 不会被当成注释。
+function stripComments(src) {
+  let out = '';
+  let state = 'code';
+  let strCh = null;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    const nx = src[i + 1];
+    if (state === 'code') {
+      if (ch === '/' && nx === '/') { state = 'line'; i += 1; continue; }
+      if (ch === '/' && nx === '*') { state = 'block'; i += 1; continue; }
+      if (ch === '"' || ch === "'" || ch === '`') { strCh = ch; state = 'str'; out += ch; continue; }
+      out += ch;
+      continue;
+    }
+    if (state === 'line') { if (ch === '\n') { state = 'code'; out += ch; } continue; }
+    if (state === 'block') { if (ch === '*' && nx === '/') { state = 'code'; i += 1; } continue; }
+    if (state === 'str') {
+      out += ch;
+      if (ch === '\\') { out += src[i + 1] ?? ''; i += 1; continue; }
+      if (ch === strCh) state = 'code';
+      continue;
+    }
+  }
+  return out;
+}
+
 // 从单个文件抽取导出的组件名
 function extractFromFile(file) {
   const ext = extname(file);
@@ -80,7 +108,7 @@ function extractFromFile(file) {
 
   let src = '';
   try {
-    src = readFileSync(file, 'utf8');
+    src = stripComments(readFileSync(file, 'utf8'));
   } catch {
     return [];
   }
