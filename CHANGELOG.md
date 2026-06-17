@@ -6,6 +6,14 @@
 
 ---
 
+## [1.2.1] - 2026-06-17
+
+### Changed
+
+- `figma-to-code`：步骤 2.5 默认改为整稿一次性导出目标 UI node，分模块导出仅作为记录原因后的 fallback。
+- `figma-to-code`：`extract-spec.mjs` 支持 `--node-id` 从整稿 `.tsx` 抽指定子树，并报告 `display: contents` 承担定位职责的布局风险。
+- `figma-to-code`：强化 source/reference/implementation 预览截图清晰度与 `PROGRESS.md` 字段要求。
+
 ## [1.2.0] - 2026-06-16
 
 ### Added

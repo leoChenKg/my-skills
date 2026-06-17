@@ -1,32 +1,32 @@
-# 03 · 代码生成（以 reference .tsx + reference preview 为事实源 + 数据保真 + 字体保真）
+# 03 · 代码生成（以 source .tsx + reference preview 为事实源 + 数据保真 + 字体保真）
 
-目标：把每个**待新建**单元生成为符合项目既有栈与规范的代码（探测不到则 AI 选最合理的），**以步骤 2.5 预拉取并经 3a 确认的 Figma 原始 `.tsx` 为取值数据源、`reference-preview.png` 为视觉参照逐字段对照**，引用既有/新建 token，复用已命中的组件。流程位置：步骤 3 的 **3b**（在 3a 本地事实源确认之后、3c 人工审核之前）。
+目标：把每个**待新建**单元生成为符合项目既有栈与规范的代码（探测不到则 AI 选最合理的），**以步骤 2.5 整稿预拉取并经 3a 确认的 source `.tsx` 中该 `data-node-id` 子树为取值数据源、单元 `reference-preview.png` 为视觉参照逐字段对照**，引用既有/新建 token，复用已命中的组件。流程位置：步骤 3 的 **3b**（在 3a 本地事实源确认之后、3c 人工审核之前）。
 
-> 前提：本单元的 `get_design_context` 导出代码已在**步骤 2.5 批量预拉取**时逐字保存为 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`，登记到 `registry`，并已保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`；3a 已确认 `.tsx`、registry、reference preview 均可用，非标类已在 figma-shim 兜底（见 [05-visual-verification.md](05-visual-verification.md)）；所需资源由用户提前语义命名备好并提供了资源目录（见 [04-asset-handling.md](04-asset-handling.md)）。
+> 前提：目标 UI node 的 `get_design_context` 导出代码已在**步骤 2.5 整稿预拉取**时逐字保存为 `.figma-to-code/preview/src/source/<targetNodeIdSafe>.tsx`，登记到 source registry，并已保存 `.figma-to-code/screenshots/<targetNodeIdSafe>/source-reference-preview.png`；本单元 `reference-preview.png` 已由整稿 preview 派生，或已有合规 fallback 记录。3a 已确认 source `.tsx`、registry、reference preview 均可用，非标类已在 figma-shim 兜底（见 [05-visual-verification.md](05-visual-verification.md)）；所需资源由用户提前语义命名备好并提供了资源目录（见 [04-asset-handling.md](04-asset-handling.md)）。
 
 > 开工闸门：写代码前回到 SKILL.md 重读「全局约束」，声明本步适用 A1 / A4 / A5 / A6 / B6 / B7 / C1 / D1 / D2 / D5 等再动手。
 
 ## 目录
 
-- [事实源](#以-reference-tsx--reference-preview-为事实源约束-a6先做)
+- [事实源](#以-source-tsx--reference-preview-为事实源约束-a6先做)
 - [数据保真](#数据保真闸门约束-a最高优先)
 - [单元生成流程](#单元生成流程)
 - [Token 与资源](#token-适配)
 - [间距与响应式](#间距与定位还原约束-a4全维度)
 - [交互态与要点](#按设计稿补全交互态--响应式)
 
-## 以 reference .tsx + reference preview 为事实源（约束 A6，先做）
+## 以 source .tsx + reference preview 为事实源（约束 A6，先做）
 
-3b 不再"回去逐个读散值手搭"，也不照抄一份手工 HTML，而是**对照步骤 2.5/3a 确认过的原始 `.tsx`（取值源）+ reference preview（视觉参照）逐字段改写成项目栈**：
+3b 不再"回去逐个读散值手搭"，也不照抄一份手工 HTML，也不默认重新下载模块代码，而是**对照步骤 2.5/3a 确认过的整稿 source `.tsx` 中对应 `data-node-id` 子树（取值源）+ 单元 reference preview（视觉参照）逐字段改写成项目栈**：
 
-1. 打开本单元 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`（它与 Figma 导出代码 1:1），并查看 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。
+1. 打开 `.figma-to-code/preview/src/source/<targetNodeIdSafe>.tsx`（它与用户目标 UI node 的 Figma 整稿导出 1:1），按本单元 `data-node-id` 定位子树，并查看 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。
 2. **逐字段映射**：`.tsx` 里的每个尺寸/间距/圆角/颜色/字体/对齐/背景 → 项目栈对应写法（token/类名/样式），**不漏字段、不改值**。
 3. 用该单元的「属性核对清单」自检：每项都已落到代码里。
 4. 把"翻译"从"读散值手抄"变成"对照保真源改写栈"——这是堵住"手抄遗漏属性"的核心。
 
 ## 数据保真闸门（约束 A，最高优先）
 
-规则全文以 SKILL.md「全局约束」A1~A6 为准；本步落地要点：**所有设计值以原始 `.tsx` / MCP 精确返回为准**——尺寸/间距/圆角/位置取 `get_metadata`+`.tsx`，颜色/字号/字重/行高/token 取 `get_variable_defs`+`.tsx`，文案取设计稿原文不改写不占位；取不到的值不编造、卡点标「待确认」（A2）；不以"视觉接近"偏离数值（A3）；关键字值原样保留、禁具体化（A5）。
+规则全文以 SKILL.md「全局约束」A1~A7 为准；本步落地要点：**所有设计值以整稿 source `.tsx` / MCP 精确返回为准**——尺寸/间距/圆角/位置取 `get_metadata`+source `.tsx`，颜色/字号/字重/行高/token 取 `get_variable_defs`+source `.tsx`，文案取设计稿原文不改写不占位；取不到的值不编造、卡点标「待确认」（A2）；不以"视觉接近"偏离数值（A3）；关键字值原样保留、禁具体化（A5）。fallback 分模块导出只作降级事实源，命中 `contents` 布局风险时不得采用其几何表达（A7）。
 
 ### 缺数值属性时用 `use_figma` 读真值（约束 A2，禁先猜）
 
@@ -46,7 +46,7 @@
 
 对每个待新建单元：
 
-1. **以 reference .tsx + reference preview 为事实源**：打开 `modules/<nodeIdSafe>.tsx`（= `get_design_context` 的 Figma 导出代码逐字保存）并查看对应 `reference-preview.png`。**这是参考不是终稿**（D2）——绝不把 React+Tailwind 原样照抄到非 React/Tailwind 项目，而是据 `.tsx` 逐字段改写。不要拿整页低分辨率图替代 reference preview 做依据。
+1. **以 source .tsx + reference preview 为事实源**：打开 `source/<targetNodeIdSafe>.tsx` 并定位本单元 `data-node-id` 子树，查看对应 `reference-preview.png`。**这是参考不是终稿**（D2）——绝不把 React+Tailwind 原样照抄到非 React/Tailwind 项目，而是据 `.tsx` 逐字段改写。不要拿整页低分辨率图替代 reference preview 做依据。
 2. **适配项目栈**（用步骤 0 探测结果；探测不到则 AI 选最合理的）：
    - 框架：React / Vue / RN / Svelte —— 用项目框架写法重写结构。
    - 样式：Tailwind / CSS Modules / styled-components / SCSS —— 用项目既有方案表达。
@@ -82,7 +82,7 @@
 
 ## 字体保真（约束 C）
 
-1. **字体族 / 字重 / 字号严格取自** 原始 `.tsx` / `get_variable_defs` / `get_design_context`，**禁自作主张替换字体**（C1）；关键字行高等保留原样（A5）。
+1. **字体族 / 字重 / 字号严格取自** source `.tsx` / `get_variable_defs` / `get_design_context`，**禁自作主张替换字体**（C1）；关键字行高等保留原样（A5）。
 2. 检测到项目未引入的第三方字体 → 在**卡点明确提醒用户补充字体资源**（按 B7 由用户语义命名放入项目）。
 3. 字体到位前**不得用近似字体顶替后默不作声**；如确需临时降级，必须在卡点显式标注「临时用 X 顶替 Y，待补」（C2）。
 
@@ -98,6 +98,14 @@
    - 左 inset `= 子.x − 父.x`；右 inset `= (父.x + 父.w) − (子.x + 子.w)`；上/下 padding 同理
 4. **禁假设**：左右/上下可**不对称**、各间距可**不等**、对齐**未必居中**——每一处单独取值（A1/A4）。实测本类稿：竖直间距多为 20px 但有 68px 例外；水平 insets 有 `x=16 w=343`（左右各 16）与 `x=0 w=375`（全宽通栏）两种。
 5. **隐藏节点**（`hidden=true`）不计入间距，但可解释相邻可见单元间距为何偏大（中间压着隐藏占位）。
+
+### 分模块导出的布局风险（A7）
+
+如果处于 fallback 分模块导出，先用 `extract-spec.mjs <fallback.tsx> --json` 查看 `layoutRisk`：
+
+1. 命中 `absolute/relative contents + left/top/right/bottom/inset/margin` 时，不要保留这个 wrapper 的布局表达；`display:contents` 不生成盒子，偏移会丢失。
+2. 对顶部帽、卡片内缩、重叠装饰层、背景叠层等结构，几何关系优先取整稿 source/稳定父级导出和 `get_metadata` 坐标差。
+3. 典型还原：若帽子 `x=0,w=359`，白卡 `x=8,w=343`，则父容器宽 `359px`，白卡相对帽子 `left/top=8px`；禁止因 fallback `.tsx` 的 `contents` wrapper 塌陷而把白卡写成 `x=0`。
 
 ### 响应式（仅布局层，数值仍严格按设计 · A4）
 
@@ -117,7 +125,7 @@
 **完全以设计稿为依据，不看项目约定、不臆测**（约束 A）：
 
 1. `get_metadata` 看同级节点、`search_design_system` 看 component set 变体，找出设计稿给出的状态帧（正常 / hover / 点击 / 加载 / 禁用）。
-2. 找到几个状态就实现几个，逐个对照还原；每个状态帧都进入步骤 2.5，单独保存原始 `.tsx` + `reference-preview.png`，不靠整图缩略判断。
+2. 找到几个状态就实现几个，逐个对照还原；若状态帧在目标 UI node 内，直接从整稿 source `.tsx` 按 `data-node-id` 定位；若状态帧是目标外的独立 node，把该状态帧作为新的目标 UI node 走整稿预拉取，不默认分模块下载。
 3. 响应式：有多尺寸画板（mobile / desktop）则按各断点分别实现；只有单一尺寸时按该尺寸实现，不臆造断点。
 
 ## 要点
@@ -127,6 +135,6 @@
 - 重生成以 `node-id` 为锚点，只更新对应节点，不冲掉人工改动。
 - 生成后立即过项目 lint，纳入 Definition of Done；再进 3c 人工审核。
 - **兼容范围（D5）**：产出语法限定在步骤0 探测到的目标环境内（探测不到则向现有源码看齐），不引入项目不支持的 CSS/ES 特性；命中风险降级或卡点说明。
-- 本步相关约束：A1/A2/A3/A4/A5/A6、B1/B2/B4/B6/B7、C1/C2、D1/D2/D3/D5、G1/G2。
+- 本步相关约束：A1/A2/A3/A4/A5/A6/A7、B1/B2/B4/B6/B7、C1/C2、D1/D2/D3/D5、G1/G2。
 
 下一步：[05-visual-verification.md](05-visual-verification.md)（3c 预览截图对照 + 人工审核）；资源处理详见 [04-asset-handling.md](04-asset-handling.md)。

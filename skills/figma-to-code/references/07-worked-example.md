@@ -1,6 +1,6 @@
 # 07 · 端到端最小范例（小标题，HTML+CSS 栈）
 
-目标：用一个最小但完整的工作单元，演示从步骤 2.5 统一预拉取到最终交付 CSS 的实际产物与衔接动作。它展示的是“一趟正确流程长什么样”：reference `.tsx` 负责属性事实源，reference preview 负责视觉参照，implementation preview 负责最终对照。
+目标：用一个最小但完整的工作单元，演示从步骤 2.5 整稿预拉取到最终交付 CSS 的实际产物与衔接动作。它展示的是“一趟正确流程长什么样”：source `.tsx` 负责属性事实源，reference preview 负责单元视觉参照，implementation preview 负责最终对照。此例的目标 UI node 本身就是单个组件，所以整稿 source 与单元 node 相同。
 
 > 本文数值是示例：`22px / #333 / 40px` 等都来自这个特定 node。你的实现一律以自己的 `get_design_context` 返回为准，不要把这里的具体值当通用默认值。
 >
@@ -11,7 +11,7 @@
 ## 目录
 
 - [输入](#输入)
-- [2.5 预拉取](#①-25--统一预拉取-get_design_context-参考代码节选)
+- [2.5 预拉取](#①-25--整稿预拉取-get_design_context-参考代码节选)
 - [3a 本地事实源确认](#③-3a--本地事实源确认)
 - [3c-auto 属性表](#④-3c-auto--a6-映射表由-extract-specmjs-自动产出agent-核对不再手填)
 - [3b 产出代码](#⑥-3b--产出项目代码html--css)
@@ -25,7 +25,7 @@
 
 ---
 
-## ① 2.5 · 统一预拉取 get_design_context 参考代码（节选）
+## ① 2.5 · 整稿预拉取 get_design_context 参考代码（节选）
 
 ```tsx
 // 容器：h-[40px] overflow-clip relative w-[132px]
@@ -43,29 +43,31 @@
 
 设计变量提示：`中性色/Color_Gray_02: #333333`。
 
-## ② 2.5 · 逐字存 .tsx + registry + reference preview
+## ② 2.5 · 逐字存 source .tsx + registry + reference preview
 
-- 逐字保存为 `.figma-to-code/preview/src/modules/2507-10307.tsx`（零修改，图片用导出在线链接）。
-- 登记到 `src/registry.ts`：`{ id:'2507:10307', name:'小标题-中', Component, w:132, h:40 }`。
+- 逐字保存为 `.figma-to-code/preview/src/source/2507-10307.tsx`（零修改，图片用导出在线链接）；`PROGRESS.md` 记录 `exportMode: whole-node`。
+- 登记到 `src/registry.ts`：`{ kind:'source', id:'2507:10307', name:'小标题-中', Component, w:132, h:40 }`。
 - 起 Vite/React 预览，确认编译无报错、字体和图片加载正常，非标 `font-['zihunxinquhei:...']` 由 `figma-shim.css` 兜底。
+- 保存 `.figma-to-code/screenshots/2507-10307/source-reference-preview.png`。
 - 保存 `.figma-to-code/screenshots/2507-10307/reference-preview.png`，并把路径写入 `.figma-to-code/PROGRESS.md`。
 
 ## ③ 3a · 本地事实源确认
 
-实现该单元前不再重新下载全量代码，只确认步骤 2.5 的本地事实源可用：
+实现该单元前不再重新下载代码，只确认步骤 2.5 的本地事实源可用：
 
 ```text
-[x] preview/src/modules/2507-10307.tsx 存在
-[x] registry 已登记 2507:10307 / w=132 / h=40
+[x] preview/src/source/2507-10307.tsx 存在
+[x] registry 已登记 source 2507:10307 / w=132 / h=40
+[x] screenshots/2507-10307/source-reference-preview.png 存在且可打开
 [x] screenshots/2507-10307/reference-preview.png 存在且可打开
 [x] preview 服务编译无 error
 ```
 
-若图片链接过期或 reference preview 失效，只对 `2507:10307` 单点重拉 `get_design_context`，覆盖 `.tsx` 并重截 reference preview。
+若图片链接过期或 reference preview 失效，优先对目标 UI node `2507:10307` 重拉整稿 source，覆盖 source `.tsx` 并重截 source/reference preview。
 
 ## ④ 3c-auto · A6 映射表（由 extract-spec.mjs 自动产出，agent 核对，不再手填）
 
-跑 `node scripts/extract-spec.mjs .figma-to-code/preview/src/modules/2507-10307.tsx`，脚本机器抽出「期望属性表」（见 [08-attribute-verification.md](08-attribute-verification.md)）：
+跑 `node scripts/extract-spec.mjs .figma-to-code/preview/src/source/2507-10307.tsx --node-id 2507:10307`，脚本机器抽出「期望属性表」（见 [08-attribute-verification.md](08-attribute-verification.md)）：
 
 ```text
 [node 2507:10307] 叶子(自动比对):
@@ -147,3 +149,4 @@ background-size: 100% 100%;
 2. **B6 反推内部坐标**：看到 `left-[2.5px]/top-[22.76px]` 就去精确定位背景 → 应按“文件名含 bg → 直接铺满”处理。
 3. **A5 关键字具体化**：把 `leading-[normal]` 写成某个 px 数字凑高度。
 4. **动态宽度**：宽度由文字撑开的单元，不要写死 `width: 132px`。
+5. **A7 分模块风险**：若 fallback 导出里出现 `absolute contents left-[8px] top-[8px]`，`extract-spec.mjs` 会报 `layoutRisk`；该导出只可作叶子属性参考，帽子/白卡等几何关系必须回到整稿 source 或稳定父级 + `get_metadata` 坐标。

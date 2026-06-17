@@ -14,7 +14,7 @@
 | 设计 Token | `tailwind.config.*`（theme）、SCSS/LESS 变量文件、`theme.ts`/`tokens.ts`、`:root` CSS 自定义属性、`design-tokens.json` | 生成最符合该项目栈的 token 设置（如 Tailwind 项目写进 theme.extend；CSS 项目建 `:root` 变量） |
 | 资源落地 | 既有图标体系（SVGR / sprite / `<Icon>` 读目录 / iconfont）、`src/assets`、`public/`、CDN 用法、既有图标库 | 选**资源分支**（默认 B）：分支 B 用户提前语义命名备好 + 提供目录；分支 A agent 用 `get_screenshot` 导出确定项 + manifest 标不确定项待用户裁决。两分支下游引用一致（B3/B7，见 04） |
 | 交互态 / 响应式 | —（不看项目约定） | **完全按设计稿**：见下 |
-| 审核方式 | —（不看项目约定） | **本 skill 写死**：步骤 2.5 统一把 Figma 导出代码逐字存为 `.tsx`，登记 registry 并生成 `reference-preview.png`；交付代码保存 `implementation-preview.png`，由**人工对照两张预览截图 + 逐属性核对原始 `.tsx`/期望表**审核（无像素对比，见 05） |
+| 审核方式 | —（不看项目约定） | **本 skill 写死**：步骤 2.5 优先把用户目标 UI node 整稿 Figma 导出代码逐字存为 `preview/src/source/<targetNodeIdSafe>.tsx`，登记 source registry 并生成 `source-reference-preview.png`；每个单元从整稿派生 `reference-preview.png`，交付代码保存 `implementation-preview.png`，由**人工对照预览截图 + 逐属性核对 source `.tsx`/期望表**审核（无像素对比，见 05） |
 
 ## 交互态 / 响应式：完全按设计稿
 

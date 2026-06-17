@@ -20,7 +20,7 @@
 批次1(共享底层)：指定 1 人优先完成并合并进 main；其他人此阶段不重复造，等合并
 批次2~N(中层)  ：基于已合并的底层，分头做子模块/大模块并合并
 批次末(页面)   ：各自基于 main 上"已完成"的单元拼装页面
-步骤 2.5 由负责人统一预拉取所有待建 reference .tsx、登记 registry、保存 reference-preview.png；每批仍走主工作流的 3a 本地事实源确认 / 3b 生成(扫资源引用) / 3c-auto 自动校验+不可见层自检 / 3c 截 implementation-preview.png 并对照 reference-preview.png / 卡点 review
+步骤 2.5 由负责人统一对用户目标 UI node 做整稿预拉取，保存 source `.tsx`、登记 source registry、保存 `source-reference-preview.png`，并从整稿派生各单元 `reference-preview.png`；只有合规 fallback 才分模块导出稳定父级/模块并记录原因。每批仍走主工作流的 3a 本地事实源确认 / 3b 生成(扫资源引用) / 3c-auto 自动校验+不可见层自检+layoutRisk / 3c 截 implementation-preview.png 并对照 reference-preview.png / 卡点 review
 ```
 
 ## 防冲突 / 防重复的纪律
@@ -29,7 +29,7 @@
 - 发现自己要建的单元别人已在做 → 走分工沟通，不并行造两份。
 - 业务模块按文件 / 目录边界分配，尽量不改同一文件（约束 G1/G2）。
 - 资源由各自提前语义命名放入项目（约束 B7），命名带模块前缀避免跨人重名；缺资源在 3b 即时提示补齐，无全局清单需协调。
-- 原始 `.tsx` 与预览截图落在 `.figma-to-code/preview/src/modules/`、`.figma-to-code/screenshots/<nodeIdSafe>/`（临时产物、已 gitignore）。多人协作时建议由同一负责人维护步骤 2.5 预拉取结果，避免各自拉取的 reference preview 版本不一致。
+- 整稿 source `.tsx` 落在 `.figma-to-code/preview/src/source/`，整稿截图落在 `.figma-to-code/screenshots/<targetNodeIdSafe>/source-reference-preview.png`，单元截图落在 `.figma-to-code/screenshots/<nodeIdSafe>/`（临时产物、已 gitignore）。多人协作时必须由同一负责人维护步骤 2.5 source 与派生截图，避免各自分段拉取造成 reference preview 版本不一致。
 
 ## 要点
 

@@ -73,7 +73,7 @@
 
 停下，向用户展示：单元清单 + 层级 + 依赖图 + 复用关系（共享单元）+ 组合关系 + 批次顺序。做一遍约束自检，报告「无违反 / 有破例」，请求确认。用户确认/调整后才进入步骤 2。
 
-> **衔接批量预拉取（步骤 2.5）**：卡点①确认拆分/批次后，进入步骤 2 复用判定，再到**步骤 2.5 批量预拉取**——按依赖顺序一次性把所有"待新建（未命中复用）"单元的 `get_design_context` 逐字存为 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`、登记 `registry`，并保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`（`nodeIdSafe = nodeId.replace(/[:]/g, '-')`；分时拉取守约 10 次/分钟速率；URL 过期才按需重拉单个）。`PROGRESS.md` 记录 prefetch 状态、registry 状态、reference preview 截图路径、失败/过期重拉项。本步只拉"结构+数值源"的 `.tsx` 和 reference preview，**仍不在此处理图片资源**（资源按步骤 2 的 A/B 分支在实现期处理）。详见 SKILL.md 步骤 2.5。
+> **衔接整稿预拉取（步骤 2.5）**：卡点①确认拆分/批次后，进入步骤 2 复用判定，再到**步骤 2.5 整稿预拉取**——默认只对用户目标 UI node 一次性 `get_design_context`，逐字存为 `.figma-to-code/preview/src/source/<targetNodeIdSafe>.tsx`、登记 source registry，并保存 `.figma-to-code/screenshots/<targetNodeIdSafe>/source-reference-preview.png`。各工作单元后续从整稿 `.tsx` 按 `data-node-id` 定位取值，单元 `reference-preview.png` 从整稿 preview 按 `get_metadata` 坐标裁剪/定位生成。只有整稿导出失败/超时/截断、整稿 `.tsx` 无法编译、或整稿截图无法清晰分块时，才记录 `fallbackReason` 后分模块导出稳定父级/模块；用户目标本身是单组件时，该组件就是整稿 source，不再拆更小。详见 SKILL.md 步骤 2.5。
 
 ## 要点
 
