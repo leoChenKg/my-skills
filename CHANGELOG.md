@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.0] - 2026-06-17
+
+### Changed
+
+- `figma-to-code`：默认事实源策略改为模块优先，整稿导出降级为可选优化。
+- `figma-to-code`：新增 `PROGRESS.md` 状态机和 FactsReady 硬闸门，`facts-ready` 前禁止写项目代码。
+- `figma-to-code`：新增 `flow-guard.mjs`，在 3b 或局部项目代码修复前检查模块 reference `.tsx`、reference preview、metadata/geometry 与 attribute/layoutRisk 记录。
+- `figma-to-code`：更新视觉验证和属性校验文档，默认对模块 `.tsx` 与模块 preview 做校验。
+
 ## [1.2.1] - 2026-06-17
 
 ### Changed

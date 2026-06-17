@@ -2,7 +2,7 @@
 
 目标：把一个 Figma node（页面 / Frame / 区块）拆成一组**可独立实现的工作单元**，理清依赖、复用、组合关系，并据依赖拓扑切成「实现批次」。这是后续复用判定、分批生成、卡点 review 的基础。
 
-> 本步结束有 **卡点①**：必须停下，把拆分结果给用户 review 确认后才能继续（约束 E1/E3）。
+> 本步结束有 **卡点 1**：必须停下，把拆分结果给用户 review 确认后才能继续（约束 E1/E3）。
 
 ## 输入
 
@@ -17,10 +17,10 @@
 不区分「公共组件 / 业务模块」两类，统一为「工作单元」。每个单元有层级标注，层级只表示**依赖深浅**，不表示流程阶段：
 
 ```text
-原子   (atom)      : Button、Input、Icon、Tag …
-分子   (molecule)  : SearchBar(=Input+Button)、Card …
-子模块 (sub-module): 由分子/原子组合的中等区块（如 CourseCard、FilterBar）
-大模块 (module)    : 由子模块组合的业务区块（如 CourseList、Header）
+原子   (atom)      : 最小可复用控件 / 图标 / 标签 / 输入单元
+分子   (molecule)  : 由原子组合出的局部交互或展示单元
+子模块 (sub-module): 由分子/原子组合的中等区块
+大模块 (module)    : 由子模块组合的业务区块
 页面   (page)      : 由大模块组合的完整页面
 ```
 
@@ -49,36 +49,34 @@
 ## 输出（建议结构）
 
 ```text
-目标 node: 1789:7671 (课程首页)
+目标 node: <targetNodeId> (<targetName>)
 工作单元 + 标注：
-- [原子] Button      1789:7680  依赖:—            复用:多处(共享)
-- [原子] Icon        1789:7682  依赖:—            复用:多处(共享)
-- [分子] CourseCard  1789:7715  依赖:Button,Icon  复用:CourseList 内多次
-- [大模块] CourseList 1789:7740  依赖:CourseCard  复用:首页1处
-- [大模块] Header    1789:7700  依赖:Icon         复用:首页1处
-- [页面] HomePage    1789:7671  依赖:Header,CourseList
+- [原子] <atomUnit>       <nodeId>  依赖:—                    复用:多处(共享)
+- [分子] <moleculeUnit>   <nodeId>  依赖:<atomUnit>           复用:<parentUnit> 内多次
+- [子模块] <subModule>    <nodeId>  依赖:<moleculeUnit>       复用:<moduleUnit> 内组合
+- [大模块] <moduleUnit>   <nodeId>  依赖:<subModule>          复用:<targetName> 1处
+- [页面] <pageUnit>       <nodeId>  依赖:<moduleUnit>
 
 实现批次（自底向上）：
-  批次1(共享底层): Button, Icon
-  批次2: CourseCard
-  批次3: CourseList, Header   ← 可并行
-  批次4(页面组合): HomePage
+  批次1(共享底层): <atomUnit>, <moleculeUnit>
+  批次2: <subModule>
+  批次3: <moduleUnit>   ← 同批互不依赖时可并行
+  批次4(页面组合): <pageUnit>
 
 依赖图：
-  Button,Icon → CourseCard → CourseList → HomePage
-               Icon → Header → HomePage
+  <atomUnit> → <moleculeUnit> → <subModule> → <moduleUnit> → <pageUnit>
 ```
 
-## 卡点①（必做）
+## 卡点 1（必做）
 
-停下，向用户展示：单元清单 + 层级 + 依赖图 + 复用关系（共享单元）+ 组合关系 + 批次顺序。做一遍约束自检，报告「无违反 / 有破例」，请求确认。用户确认/调整后才进入步骤 2。
+停下，向用户展示：单元清单 + 层级 + 依赖图 + 复用关系（共享单元）+ 组合关系 + 批次顺序。做一遍约束自检，报告「无违反 / 有破例」，请求确认。用户确认/调整后才进入步骤 2a。
 
-> **衔接整稿预拉取（步骤 2.5）**：卡点①确认拆分/批次后，进入步骤 2 复用判定，再到**步骤 2.5 整稿预拉取**——默认只对用户目标 UI node 一次性 `get_design_context`，逐字存为 `.figma-to-code/preview/src/source/<targetNodeIdSafe>.tsx`、登记 source registry，并保存 `.figma-to-code/screenshots/<targetNodeIdSafe>/source-reference-preview.png`。各工作单元后续从整稿 `.tsx` 按 `data-node-id` 定位取值，单元 `reference-preview.png` 从整稿 preview 按 `get_metadata` 坐标裁剪/定位生成。只有整稿导出失败/超时/截断、整稿 `.tsx` 无法编译、或整稿截图无法清晰分块时，才记录 `fallbackReason` 后分模块导出稳定父级/模块；用户目标本身是单组件时，该组件就是整稿 source，不再拆更小。详见 SKILL.md 步骤 2.5。
+> **衔接模块事实源预拉取（步骤 2b）**：卡点 1 确认拆分/批次后，进入步骤 2a 复用判定，再到**步骤 2b 模块事实源预拉取**——默认对每个待建模块逐个 `get_design_context`，逐字存为 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`，并生成 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。每个模块还必须登记 metadata/geometry、attributeCheck 或 layoutRisk。全部待建模块事实源齐全并通过 `flow-guard --before 3b` 后，才允许写项目代码。整稿导出只是可选优化，不是默认前提。详见 SKILL.md 步骤 2b。
 
 ## 要点
 
 - **大页面必拆**：拆细既提升还原度，又避免输出截断、节省 MCP 速率（约 10 次/分钟）。
 - **复用关系决定批次**：漏标共享单元 → 上层批次会各自重造它（违反 D1）。
-- 该输出直接喂给步骤 2（复用判定）和步骤 3（分批生成）。
+- 该输出直接喂给步骤 2a（复用判定）和步骤 3（分批生成）。
 
 下一步：[02-component-reuse.md](02-component-reuse.md)。

@@ -10,7 +10,7 @@
 // 支持栈：TS/JS（barrel index 与具名/默认导出）、Vue SFC（按文件名）、RN（同 TS/JS）。
 //
 // 用法:
-//   node scripts/scan-components.mjs [--root src/components] [--json]
+//   node .agents/skills/figma-to-code/scripts/scan-components.mjs [--root src/components] [--json]
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, basename, extname } from 'node:path';

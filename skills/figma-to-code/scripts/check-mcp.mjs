@@ -6,7 +6,7 @@
 // 注：资源分支 A（agent 协助导出）依赖 Figma MCP 的 get_screenshot，无需额外 MCP；
 //     属性级自动校验（3c-auto / extract-spec.mjs）是纯静态 Node 脚本，零 MCP 依赖。
 //
-// 用法: node scripts/check-mcp.mjs [--json]
+// 用法: node .agents/skills/figma-to-code/scripts/check-mcp.mjs [--json]
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';

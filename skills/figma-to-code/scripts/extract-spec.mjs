@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 静态解析步骤 2.5 保存的 Figma source/fallback .tsx，逐元素抽出「期望属性表」。
+// 静态解析步骤 2b 保存的 Figma module reference .tsx，逐元素抽出「期望属性表」。
 // 用途：把 references/07 里手填的「A6 强制映射表」自动化——agent 不再凭记忆列属性，
 //      拿这张支持模式确定性生成的表去逐项比对自己生成的代码（3c-auto，约束 F4）。
 //
@@ -8,7 +8,7 @@
 //   - 布局/定位/间距（absolute/inset/margin/flex 排布/transform）只「标注」不判对错——
 //     .tsx 是绝对定位导出、产出是语义重写，二者天然不同，自动判会误报，归人工 + A4。
 //   - 对 display:contents 承担定位职责的已知坏味道做风险提示；命中时几何必须回到整稿/父级
-//     导出与 get_metadata 坐标，分模块导出只可作叶子属性参考。
+//     导出与 get_metadata 坐标，模块 reference 只可作叶子属性参考。
 //   - 非标 Figma 类（col-N/row-N/伪字体族）原样列出并标注，不静默丢弃。
 //   - 未识别的类进入「未知」清单交 agent 人判，绝不假装解析或承诺全覆盖。
 //   - 纯静态正则解析，零依赖、不渲染、不碰预览子包、不用浏览器。
@@ -17,7 +17,7 @@
 //           手写组件含动态 className 表达式（三元/变量/函数调用）时类会漏抽，请勿用于该场景。
 //
 // 用法:
-//   node scripts/extract-spec.mjs <path/to/source.tsx> [--json] [--node-id <id>] [--metadata <metadata.json>]
+//   node .agents/skills/figma-to-code/scripts/extract-spec.mjs <path/to/module-reference.tsx> [--json] [--node-id <id>] [--metadata <metadata.json>]
 
 import { readFileSync, existsSync } from 'node:fs';
 import { relative } from 'node:path';
@@ -29,7 +29,7 @@ let nodeIdFilter = null;
 let metadataFile = null;
 
 function usage() {
-  return '用法: node scripts/extract-spec.mjs <path/to/source.tsx> [--json] [--node-id <id>] [--metadata <metadata.json>]';
+  return '用法: node .agents/skills/figma-to-code/scripts/extract-spec.mjs <path/to/module-reference.tsx> [--json] [--node-id <id>] [--metadata <metadata.json>]';
 }
 
 for (let i = 0; i < args.length; i += 1) {
@@ -312,7 +312,7 @@ function layoutRiskFor(classes, nodeId, name) {
     name,
     classes,
     reason: reasons.join('；'),
-    action: '分模块导出只可作叶子属性参考；布局几何回到整稿/稳定父级导出与 get_metadata 坐标。',
+    action: '模块 reference 只可作叶子属性参考；布局几何回到 metadata/get_metadata 或稳定父级坐标。',
   };
 }
 
@@ -413,9 +413,9 @@ console.log(`共 ${elements.length} 个带样式元素。`);
 console.log('用法：agent 拿「叶子」逐项比对生成代码（漏/错即修），布局项按 A4 人工核对，非标/未知逐个人判。');
 if (anyUnknown) console.log('⚠ 存在「未知」类：必须逐个确认其设计含义后再落代码，不得忽略。');
 if (layoutRisk.length) {
-  console.log(`⚠ 存在 ${layoutRisk.length} 个 contents 布局风险：命中项不得把分模块导出当几何事实源。`);
+  console.log(`⚠ 存在 ${layoutRisk.length} 个 contents 布局风险：命中项不得把模块 reference 当几何事实源。`);
 }
 if (nodeIdFilter && !matchedNodeFilter) {
-  console.log('⚠ 未在 .tsx 中找到指定 node-id；请确认使用的是整稿 source .tsx，或必要时记录 fallback 后导出稳定父级节点。');
+  console.log('⚠ 未在 .tsx 中找到指定 node-id；请确认使用的是该模块 reference .tsx，或导出更稳定的父级模块并登记 layoutRisk。');
 }
 process.exit(0);

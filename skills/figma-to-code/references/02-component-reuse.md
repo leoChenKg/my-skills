@@ -12,11 +12,11 @@
 
 对步骤 1 识别出的**每个**工作单元执行：
 
-1. **扫现有实现**：`node scripts/scan-components.mjs`（自动探测常见组件目录，或 `--root` 指定），输出现有可复用组件清单（名 + 路径）。**包含本轮前序批次刚建好的单元**。
-2. **对照设计系统**：用 `search_design_system` 搜该单元，确认它在 Figma 设计系统里的标准组件名与变体（如 `PrimaryButton` / `StrokeButton` / `28/32/40/48_PrimaryButton`）。
-3. **翻译 Figma 名 → 代码名**：按项目既有命名风格推断映射（看清单里现有怎么命名）。例如项目已有 `Button`：
-   - `32_PrimaryButton` → `<Button variant="primary" size="md">`
-   - `StrokeButton` → `<Button variant="stroke">`
+1. **扫现有实现**：`node .agents/skills/figma-to-code/scripts/scan-components.mjs`（自动探测常见组件目录，或 `--root` 指定），输出现有可复用组件清单（名 + 路径）。在 skill 仓库内开发时使用 `node skills/figma-to-code/scripts/scan-components.mjs`。**包含本轮前序批次刚建好的单元**。
+2. **对照设计系统**：用 `search_design_system` 搜该单元，确认它在 Figma 设计系统里的标准组件名、变体属性和状态属性。
+3. **翻译 Figma 名 → 代码名**：按项目既有命名风格推断映射（看清单里现有怎么命名）。抽象模式：
+   - `<FigmaComponent>/<variant>/<size>` → `<CodeComponent variant="..." size="...">`
+   - `<FigmaStateProperty>` → `<CodeComponent stateProp="...">`
    - 项目无既有命名可参照时，AI 自行决定一套自洽命名（约束 D3：与项目风格自洽）。
 4. **判定**：
    - **命中**（清单里有对应单元）→ 标记「复用」，记下要传的 props，步骤 3 直接 `import`，**不重建**。
@@ -24,24 +24,23 @@
 
 ## 多层嵌套 / 组合的复用
 
-- **子模块组合成大模块**：大模块（如 `CourseList`）生成前先查它的子单元（`CourseCard`）是否已建；已建则 import 组合，未建则该子单元必须排在更靠前的批次。
+- **子模块组合成大模块**：上层单元生成前先查它依赖的子单元是否已建；已建则 import 组合，未建则该子单元必须排在更靠前的批次。
 - **共享单元提前排批**：步骤 1 标记的「被多处引用」单元，提升到尽量靠前的批次先行实现并合并，避免多个上层批次各自重造（违反 D1）。
 - **复用即停**：命中复用的单元不再进入资源准备/代码生成（它已有实现），只在组合时引用。
 
 ## 判定记录（建议结构）
 
 ```text
-单元          设计系统名      代码名             判定           批次
-Button        PrimaryButton  Button(variant)   复用✓/新建      1
-Icon          Icon           Icon              新建            1
-CourseCard    —              CourseCard        新建(依赖上述)  2
-CourseList    —              CourseList        新建(依赖Card)  3
-Header        —              Header            新建(依赖Icon)  3
+单元             设计系统名/变体        代码名/映射                 判定           批次
+<atomUnit>       <componentVariant>     <CodeComponent props>       复用✓/新建      1
+<moleculeUnit>   <componentVariant>     <CodeComposite props>       复用✓/新建      1
+<subModuleUnit>  —                      <SubModuleComponent>        新建(依赖前序)  2
+<moduleUnit>     —                      <ModuleComponent>           新建(组合子单元) 3
 ```
 
 ## 要点
 
-- **第一次造轮子不可避免**：空项目里底层单元总得先造。复用解决的是"避免第二、三次重复造"。
+- **首次新建不可避免**：空项目里底层单元总得先造。复用解决的是"避免后续重复造"。
 - **命名映射靠推断**：以项目既有命名为准；项目越规整、匹配越可靠。
 - **Token 复用门槛最低**：变量本身就是"名字→值"，搜到就能用（详见步骤 3 的 Token 适配）。
 - 扫描策略依项目栈而异（TS barrel `index.ts` / Vue SFC / RN 等），`scan-components.mjs` 已覆盖这些形态。
