@@ -13,6 +13,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const asJson = process.argv.includes('--json');
+// auto（一键）模式：浏览器截图能力为必需（视觉/属性自动校验依赖它）；strict 模式仍为可选。
+const autoMode = process.argv.includes('--auto') || process.argv.includes('--mode=auto') ||
+  (() => { const i = process.argv.indexOf('--mode'); return i >= 0 && process.argv[i + 1] === 'auto'; })();
 
 // 各工具的 MCP 配置常见位置（project 级优先于 user 级）
 const CONFIG_PATHS = [
@@ -91,10 +94,12 @@ if (playwrightPlugin && !results.some((r) => r.playwright)) {
 const figmaOk = results.some((r) => r.figma) || figmaPlugin;
 const playwrightOk = results.some((r) => r.playwright) || playwrightPlugin;
 
+// 必需项：Figma 恒为必需；auto 模式下浏览器截图能力也必需。
+const requiredOk = figmaOk && (!autoMode || playwrightOk);
+
 if (asJson) {
-  // Figma 必需；浏览器截图能力可选，不影响退出码。
-  console.log(JSON.stringify({ figmaOk, playwrightOk, configs: results }, null, 2));
-  process.exit(figmaOk ? 0 : 1);
+  console.log(JSON.stringify({ mode: autoMode ? 'auto' : 'strict', figmaOk, playwrightOk, playwrightRequired: autoMode, requiredOk, configs: results }, null, 2));
+  process.exit(requiredOk ? 0 : 1);
 }
 
 console.log('== MCP 前置检查 ==\n');
@@ -110,19 +115,27 @@ if (results.length === 0) {
 }
 
 console.log('\n== 结论 ==');
-console.log(`Figma MCP（必需）:      ${figmaOk ? '✓ 已配置' : '✗ 未配置'}`);
-console.log(`浏览器截图能力（可选）: ${playwrightOk ? '✓ 已配置' : '— 未发现'}`);
+console.log(`模式: ${autoMode ? 'auto（一键）' : 'strict（人工）'}`);
+console.log(`Figma MCP（必需）:        ${figmaOk ? '✓ 已配置' : '✗ 未配置'}`);
+console.log(`浏览器截图能力（${autoMode ? '必需' : '可选'}）: ${playwrightOk ? '✓ 已配置' : (autoMode ? '✗ 未发现' : '— 未发现')}`);
 
 if (!figmaOk) {
   console.log('\n缺失项安装引导：');
   console.log('- Figma MCP（必需）：在 Figma 桌面端开启 Dev Mode MCP Server，或安装官方 Figma MCP 插件并在 IDE 的 mcp 配置中加入 figma 服务器，然后完成 OAuth 授权。');
+}
+
+if (autoMode && !playwrightOk) {
+  console.log('\n✗ auto（一键）模式要求浏览器截图能力（自动视觉/属性校验依赖）。安装其一：');
+  console.log('  - 在 .figma-to-code/preview 安装 Playwright：npm i -D playwright pixelmatch pngjs && npx playwright install chromium');
+  console.log('  - 或在 IDE 的 mcp 配置中加入 "@playwright/mcp"（npx -y @playwright/mcp@latest）。');
+} else if (!playwrightOk) {
+  console.log('\n提示：浏览器截图能力未发现（strict 模式下可选）。可降级为用户确认截图；一键自动校验请加 Playwright。');
+}
+
+if (!requiredOk) {
   console.log('\n提示：本检查只看配置存在性。即使显示已配置，仍需确认 IDE 中对应 MCP 已成功连接（无红点/报错）。');
   process.exit(1);
 }
 
-if (!playwrightOk) {
-  console.log('\n提示：浏览器截图能力未发现（可选）。本 skill 可降级为用户确认截图；如需自动渲染截图，可在 IDE 的 mcp 配置中加入 "@playwright/mcp"（npx -y @playwright/mcp@latest）。');
-}
-
-console.log('\nFigma MCP 已配置。请再确认 IDE 中显示为已连接状态后开工。');
+console.log(`\n必需项已满足（${autoMode ? 'Figma + 浏览器截图' : 'Figma'}）。请再确认 IDE 中显示为已连接状态后开工。`);
 process.exit(0);

@@ -17,7 +17,10 @@ const GATES = [
     'reuse-done',
     'facts-prefetching',
     'facts-ready',
+    'assets-ready',        // auto: 资源前置预检通过
+    'screenshots-ready',   // auto: 各模块 Figma 原生基线已抓取
     'batch-implementing',
+    'visual-pass',         // auto: 各模块自动视觉+属性校验通过
     'batch-review',
     'done',
 ];
@@ -32,7 +35,8 @@ function usage() {
     return [
         'Usage:',
         '  flow-guard.mjs --before 3b [--progress .figma-to-code/PROGRESS.md] [--json]',
-        '  flow-guard.mjs --before local-fix [--progress .figma-to-code/PROGRESS.md] [--json]',
+        '  flow-guard.mjs --before 3a | local-fix',
+        '  flow-guard.mjs --before assets-ready | screenshots-ready | visual-pass   (auto 模式闸门)',
     ].join('\n');
 }
 
@@ -255,13 +259,49 @@ function validate(progress) {
         if (currentGateIndex < gateIndex('facts-ready')) {
             errors.push(`3a requires facts-ready; got ${currentGate || '<empty>'}`);
         }
+    } else if (before === 'assets-ready') {
+        // auto：资源前置预检必须已通过并登记（实际扫描由 check-assets.mjs 负责）
+        const flag = progress.top.assetsReady ?? progress.top.assetsCheck;
+        if (!isTruthy(flag) && String(flag).toLowerCase() !== 'pass') {
+            errors.push('assets gate: 需先跑 check-assets.mjs 通过，并在 PROGRESS 顶层记 assetsReady: true（或 assetsCheck: pass）');
+        }
+    } else if (before === 'screenshots-ready') {
+        // auto：每个待建模块都必须有可用的 Figma 原生基线 referencePreview
+        if (modules.length === 0) errors.push('requiredArtifacts.modules 为空');
+        modules.forEach((mod, index) => {
+            const id = moduleId(mod);
+            const rp = artifactPath(mod.referencePreview);
+            if (!rp) errors.push(`module[${index}] ${id}: 缺 referencePreview（Figma 原生基线）`);
+            else if (!existsSync(resolve(rp))) errors.push(`module[${index}] ${id}: referencePreview 不存在: ${rp}`);
+        });
+    } else if (before === 'visual-pass') {
+        // auto：每个模块的属性校验与视觉校验都必须通过
+        if (modules.length === 0) errors.push('requiredArtifacts.modules 为空');
+        modules.forEach((mod, index) => {
+            const id = moduleId(mod);
+            const attr = !isPending(mod.attributeCheck);
+            const risk = mod.layoutRisk !== undefined && String(mod.layoutRisk).trim() !== '';
+            if (!attr && !risk) errors.push(`module[${index}] ${id}: 缺 attributeCheck/layoutRisk`);
+            const vis = String(mod.visualCheck ?? '').trim().toLowerCase();
+            if (!['pass', 'ok', 'approved', 'auto-pass'].includes(vis)) {
+                errors.push(`module[${index}] ${id}: visualCheck 未通过（当前 "${mod.visualCheck ?? ''}"，需 pass/approved/auto-pass）`);
+            }
+        });
     } else {
         errors.push(`unsupported --before value: ${before}`);
+    }
+
+    const mode = String(progress.top.mode || 'strict').trim();
+    let pauseOn = progress.top.pauseOn;
+    if (typeof pauseOn === 'string') {
+        pauseOn = pauseOn.replace(/^\[|\]$/g, '').split(',').map((s) => s.trim()).filter(Boolean);
     }
 
     return {
         ok: errors.length === 0,
         before,
+        mode,
+        pauseOn: Array.isArray(pauseOn) ? pauseOn : [],
         currentGate,
         canEditProjectCode,
         allowedNextAction: progress.top.allowedNextAction,
@@ -312,9 +352,11 @@ if (asJson) {
     console.log(JSON.stringify(result, null, 2));
 } else if (result.ok) {
     console.log(`✓ flow guard passed before ${before}`);
+    console.log(`  mode: ${result.mode}`);
     console.log(`  currentGate: ${result.currentGate}`);
     console.log(`  canEditProjectCode: ${result.canEditProjectCode}`);
     console.log(`  moduleCount: ${result.moduleCount}`);
+    if (result.pauseOn.length) console.log(`  pauseOn: ${result.pauseOn.join(', ')}`);
     if (result.warnings.length) {
         console.log(`  warnings: ${result.warnings.join('; ')}`);
     }

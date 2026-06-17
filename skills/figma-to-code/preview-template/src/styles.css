@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/*
+ * 项目字体在此声明（按设计稿真实字体族），例如：
+ * @font-face {
+ *   font-family: "<DesignFont>";
+ *   src: url("../../<assets>/fonts/<file>") format("truetype");
+ *   font-weight: normal; font-style: normal; font-display: swap;
+ * }
+ * 缺字体会导致回退族渲染，视觉 diff 会暴露——务必补齐设计字体后再做验收。
+ */
+
+body {
+  margin: 0;
+  background: #e5e5e5;
+}

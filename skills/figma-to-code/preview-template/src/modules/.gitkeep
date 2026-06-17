@@ -1,0 +1,2 @@
+# 模块 reference .tsx 落在此目录（步骤 2b：逐字保存 Figma get_design_context 导出）。
+# 文件名 = nodeIdSafe（如 1158-2143.tsx）。保存后运行 gen-registry.mjs 生成 registry.ts。

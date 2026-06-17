@@ -1,6 +1,12 @@
 # 05 · 模块事实源与视觉验证
 
-目标：把视觉验证收敛成一条不可跳过的链路。默认事实源是 **每个待建模块自己的 reference `.tsx` + reference preview + metadata/geometry**，不是整稿 source。只有所有模块事实源齐全并通过 `flow-guard` 后，才允许进入 3b 写项目代码。
+目标：把视觉验证收敛成一条不可跳过的链路。默认事实源是 **每个待建模块自己的 reference `.tsx` + 真相基线 reference preview + metadata/geometry**，不是整稿 source。只有所有模块事实源齐全并通过 `flow-guard` 后，才允许进入 3b 写项目代码。
+
+## 视觉真相基线 = Figma 原生截图（关键）
+
+`reference-preview.png` 是**视觉对比的真相基线**，必须来自 **Figma 原生 `get_screenshot(nodeId)`**（Figma 自己渲染的设计像素），**不是**渲染导出 `.tsx` 再截图。原因：Figma 自动导出的 `.tsx` 本身会失真（`display:contents`、`col-N/row-N` 需 shim、伪字体、渐变写进 inline style、mask 等），拿它当基线会把失真烤进「标准答案」，使后续对比失去意义。
+
+`.tsx` 渲染图（`reference-render.png`）降级为**可选的「基线自检」**：先与 Figma 原生基线比一次；若已不一致，说明导出/shim/字体不可靠，必须先修（补 shim/字体）或直接以原生基线为唯一依据——在污染链路前挡掉坏基线。
 
 ## 事实源工件
 
@@ -8,8 +14,9 @@
 
 ```text
 .figma-to-code/preview/src/modules/<nodeIdSafe>.tsx
-.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png
-.figma-to-code/screenshots/<nodeIdSafe>/implementation-preview.png
+.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png      # 真相基线：Figma 原生 get_screenshot
+.figma-to-code/screenshots/<nodeIdSafe>/reference-render.png       # 可选：.tsx 渲染图，用于基线自检
+.figma-to-code/screenshots/<nodeIdSafe>/implementation-preview.png # 实现图：浏览器截 dev server
 ```
 
 可选整稿工件只用于小节点优化或结构参考：
@@ -20,20 +27,24 @@
 ```
 
 - `module reference .tsx`：模块 `get_design_context` 原始导出，逐字保存，允许保留 Figma 在线资源链接。
-- `reference-preview.png`：模块 reference `.tsx` 渲染或按模块边界截图得到，是默认视觉事实源。
+- `reference-preview.png`：**Figma 原生 `get_screenshot(nodeId)`** 抓取的真相基线（高清、1x 内容、文字细线可辨）；是视觉对比的唯一标准。
+- `reference-render.png`（可选）：渲染模块 `.tsx` 截得，仅用于「基线自检」，不作验收标准。
 - `metadata/geometry`：来自 `get_metadata` 的模块尺寸、坐标、父子关系、可见性和组合几何；用于纠正 reference `.tsx` 的 layoutRisk。
-- `implementation-preview.png`：项目代码渲染结果，只与同模块 `reference-preview.png` 对照。
+- `implementation-preview.png`：项目代码渲染结果，只与同模块真相基线 `reference-preview.png` 对照。
 
 ## PROGRESS.md 状态机
 
 `.figma-to-code/PROGRESS.md` 至少包含：
 
 ```yaml
+mode: "strict"          # 或 "auto"（一键）；缺省 strict
+pauseOn: [asset-missing, verify-fail, ambiguity]   # auto 模式下的暂停条件
 currentGate: "facts-prefetching"
 allowedNextAction: "prefetch remaining module facts"
 canEditProjectCode: false
 blockedUntil: "all requiredArtifacts.modules are complete and flow guard passes"
 resourceBranch: "B"
+assetsReady: false       # auto: check-assets.mjs 通过后置 true
 requiredArtifacts:
   modules:
     - id: "<moduleNodeId>"
@@ -45,13 +56,15 @@ requiredArtifacts:
       metadata: ".figma-to-code/metadata/<moduleNodeIdSafe>.json"
       attributeCheck: "pass"
       layoutRisk: "none"
+      visualCheck: "pending"   # auto: 通过自动视觉校验后置 pass/auto-pass
       reviewStatus: "pending"
 ```
 
-允许的 `currentGate` 顺序：
+允许的 `currentGate` 顺序（auto 模式多出 assets-ready/screenshots-ready/visual-pass）：
 
 ```text
-initialized -> detected -> structure-approved -> reuse-done -> facts-prefetching -> facts-ready -> batch-implementing -> batch-review -> done
+initialized -> detected -> structure-approved -> reuse-done -> facts-prefetching -> facts-ready
+  -> [auto: assets-ready -> screenshots-ready] -> batch-implementing -> [auto: visual-pass] -> batch-review -> done
 ```
 
 进入 `facts-ready` 的条件：
@@ -70,7 +83,7 @@ initialized -> detected -> structure-approved -> reuse-done -> facts-prefetching
 1. 调用 `get_design_context(fileKey, nodeId)`。
 2. 将返回的 React+Tailwind reference 代码逐字保存为 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`。
 3. 保存或登记该模块的 metadata/geometry。几何以 `get_metadata` 为准；若 reference `.tsx` 有 `display: contents` 定位风险，不得用它当布局真相。
-4. 渲染模块 reference，保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。
+4. **抓取真相基线**：用 `get_screenshot(nodeId)`（1x 内容、高清）保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。auto 模式可选：渲染 `.tsx` 经 `shoot.mjs --label reference-render` 得 `reference-render.png`，用 `visual-diff.mjs` 与原生基线做基线自检。
 5. 运行 `extract-spec.mjs` 并登记 `attributeCheck` 与 `layoutRisk`：
 
 ```bash
@@ -98,7 +111,27 @@ node .agents/skills/figma-to-code/scripts/extract-spec.mjs \
 
 若截图采集环境不可用，卡点必须标注「截图采集降级」，要求用户确认同路径语义的 reference preview；不能把“服务无报错”当作视觉验证通过。
 
-## 3c 人工审核
+## 自动模式视觉/属性校验（mode=auto）
+
+auto 模式用脚本替代人工 3c 的像素层与属性层，仅在失败/低置信时升级人工（见 [09-automation-pipeline.md](09-automation-pipeline.md)）：
+
+1. **实现图**：`shoot.mjs --url <devserver> --id <nodeId> --label implementation-preview`（高 DPI、等渲染稳定、紧贴 `data-shoot-root`）。
+2. **属性层**：`computed-diff.mjs` 用 `getComputedStyle` 比对 `extract-spec` 期望表（按 `data-node-id` 匹配；实现保留 `data-node-id` 时覆盖最好）。
+3. **像素层**：`visual-diff.mjs` 把实现图与真相基线 `reference-preview.png` 比，超阈值判失败并出 diff 图。
+4. **语义层**：agent 看 `reference-preview.png` + `implementation-preview.png` + `diff.png` 三图，判读布局/间距（VLM 兜底像素 diff 的误报/漏报）。
+5. 通过 → 登记模块 `visualCheck: pass`；失败 → 带 diff 反馈重生成，至多 N 次仍不过则升级人工。
+
+### 截图清晰度硬要求（贯穿所有截图）
+
+模糊/降采样图会让对比失真，强制：
+
+- Figma 原生基线：`get_screenshot` 取节点长边为 `maxDimension`、1x 内容、文字细线可辨。
+- 浏览器截图：`shoot.mjs` 用 `deviceScaleFactor ≥ 2` 高 DPI 抓取，按模块 `w×h` 紧贴元素截，不截整页。
+- 截图前等渲染稳定：`networkidle` + `document.fonts.ready`，禁用动画。
+- 超长节点按模块边界分块，绝不用降采样整页图。
+- `visual-diff.mjs` 开比前校验两图非空、非纯色、长宽比相近；模糊/空白/尺寸不符直接判失败，要求重截，不带病对比。
+
+## 3c 人工审核（strict 模式 / auto 模式升级时）
 
 3c 开始时保存项目实现截图：
 
@@ -135,16 +168,10 @@ node .agents/skills/figma-to-code/scripts/extract-spec.mjs \
 - 下一步唯一动作：
 ```
 
-## 截图清晰度
-
-- `get_screenshot` 用于结构分析、资源导出、reference 辅助截图时必须 1x 清晰。
-- 超长节点按模块边界截图；不要用降采样整页图作为模块实现或审核依据。
-- 浏览器预览截图区域应与模块 metadata 尺寸/裁剪框一致。
-- 文字或细线不可辨认时，重截或继续下钻模块。
-
 ## 要点
 
-- 默认视觉事实源是模块 `reference-preview.png`，不是整稿图。
-- `implementation-preview.png` 缺失时，不得做人工审核结论。
-- 截图对照不替代属性表；`extract-spec` 负责叶子属性兜底，人工负责布局/A4。
+- 视觉真相基线是 **Figma 原生 `get_screenshot`** 的 `reference-preview.png`，不是 `.tsx` 渲染图、也不是整稿图。
+- `implementation-preview.png` 缺失时，不得做（人工或自动）审核结论。
+- 截图对照不替代属性表；`extract-spec`/`computed-diff` 负责叶子属性，人工/VLM 负责布局/A4。
+- 一切截图必须高清无模糊（见上「截图清晰度硬要求」），否则对比无意义。
 - `facts-ready` 前禁止写项目代码，这是视觉验证链路的一部分，不是流程建议。

@@ -34,7 +34,8 @@ description: >-
 - `nodeIdSafe = nodeId.replace(/[:]/g, '-')`。
 - `targetNodeIdSafe`：用户目标 UI node 的安全名。
 - `module reference .tsx`：步骤 2b 保存的模块 Figma 原始导出，路径 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`，是默认属性事实源。
-- `reference-preview.png`：模块参考预览图，路径 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`，是默认视觉事实源。
+- `reference-preview.png`：**Figma 原生 `get_screenshot` 抓取的模块真相基线**，路径 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`，是视觉对比的唯一标准。
+- `reference-render.png`：可选，渲染模块 `.tsx` 截得，仅用于「基线自检」，不作验收标准。
 - `implementation-preview.png`：项目实现预览图，路径 `.figma-to-code/screenshots/<nodeIdSafe>/implementation-preview.png`。
 - `source reference .tsx`：可选整稿参考，路径 `.figma-to-code/preview/src/source/<targetNodeIdSafe>.tsx`；只用于小节点优化、结构参考或用户明确要求，不是默认前提。
 - `3a` 只确认本地事实源齐全可用；`3b` 才生成项目代码；`3c-auto` 做属性表比对；`3c` 做截图对照和人工审核。
@@ -77,14 +78,26 @@ description: >-
 | **F 视觉/人工审核** | |
 | F1 | 禁凭感觉宣称还原；每单元/批次必经 reference/implementation preview 人工视觉审核。 |
 | F2 | 人工重点复核布局、间距、定位、未知/非标类和伪字体族映射；叶子属性由 F4 兜底。 |
-| F3 | `get_screenshot` 用于结构分析/资源导出等非验收场景，必须 1x 清晰；超长节点按模块分块。 |
+| F3 | `get_screenshot` 既用于结构分析/资源导出，也用于抓取**模块真相基线 `reference-preview.png`**（验收基线）；一律 1x 内容、高清、文字细线可辨；超长节点按模块分块。一切截图禁模糊/降采样，否则对比无意义。 |
 | F4 | 叶子样式属性须经 `extract-spec.mjs` 校验；未知/未解析项必须人工核对后才进审核。 |
 | F5 | 禁静默丢弃设计层；装饰层 fill 近似父背景时回查真实色。 |
-| F6 | 每个待建模块都必须保留 `reference-preview.png` 与 `implementation-preview.png`。 |
+| F6 | 每个待建模块都必须保留 `reference-preview.png`（Figma 原生基线）与 `implementation-preview.png`。 |
 | **G 范围/安全** | |
 | G1 | 禁超出本次单元/批次范围擅自改动其他模块/文件。 |
 | G2 | 禁删除或重构与当前任务无关的既有代码。 |
 | G3 | 禁提交/推送代码，除非用户明确要求。 |
+
+## 模式：strict（默认）/ auto（一键）
+
+`PROGRESS.md` 顶层 `mode` 决定人工介入程度，缺省 `strict`：
+
+- **strict（默认）**：保留全部人工卡点（F1/E1/E5 等照旧），原有保证不变。
+- **auto（一键）**：用脚本自动化串起 0→5，把人工卡点换成自动校验，**仅在 `pauseOn` 列出的情形停下问人**（默认 `[asset-missing, verify-fail, ambiguity]`）。auto 模式对以下约束的执行方式做有限放宽，**其余约束（A 数据保真、B 资源、C 字体、D 复用、G 范围安全）一律不变**：
+  - **E5（每批询问）**：资源已前置备齐并通过 `check-assets.mjs` 后，不再每批询问；遇 `ambiguity`（复用命名映射不定、单元数异常、缺资源/缺字体）才停。
+  - **E2（禁一口气到尾）**：仍分批，但批与批之间由编排器自动推进，不等人工确认。
+  - **F1/E1/E4（必经人工视觉审核）**：换成自动视觉+属性校验——`shoot.mjs` 截图、`computed-diff.mjs` 比叶子属性、`visual-diff.mjs` 与 Figma 原生基线做像素 diff、agent 看三图做语义判读；阈值内自动过（登记 `visualCheck: pass`），超阈值带 diff 反馈重生成，至多 N 次仍不过则升级人工（`verify-fail`）。
+  - 自动模式新增闸门：`assets-ready`（资源预检过）、`screenshots-ready`（各模块 Figma 原生基线齐）、`visual-pass`（各模块自动校验过），由 `flow-guard.mjs --before <gate>` 强制。
+- 完整一键编排、自愈循环、迭代上限与暂停条件见 [09-automation-pipeline.md](references/09-automation-pipeline.md)。
 
 ## 开工闸门
 
@@ -115,15 +128,18 @@ description: >-
 ### 运行初始化
 
 1. 确保 `.gitignore` 含 `.figma-to-code/`。
-2. 建 `.figma-to-code/preview/`，包含 `src/modules/`、可选 `src/source/`、`registry.ts`、`App.tsx`、`figma-shim.css`。
-3. 建 `.figma-to-code/PROGRESS.md`，至少包含：
+2. 建 `.figma-to-code/preview/`：把 skill 的 `preview-template/` 复制过去（已含带 `?only=<id>` 隔离路由、`data-shoot-root` 的 `App.tsx`、`main.tsx`、`index.html`、`vite.config.ts`、`styles.css`、`figma-shim.css`、`registry.ts` 占位与空 `src/modules/`）；在 preview 安装依赖。auto 模式还需 `npm i -D playwright pixelmatch pngjs && npx playwright install chromium`。模块 `.tsx` 落 `src/modules/` 后用 `gen-registry.mjs` 自动生成 `registry.ts`（勿手改）。
+3. 建 `.figma-to-code/PROGRESS.md`，至少包含（`mode/pauseOn/assetsReady` 仅 auto 模式需要）：
 
 ```yaml
+mode: "strict"        # 一键自动化用 "auto"
+pauseOn: [asset-missing, verify-fail, ambiguity]
 currentGate: "initialized"
 allowedNextAction: "run project detection"
 canEditProjectCode: false
 blockedUntil: "structure, reuse, and all module facts are ready"
 resourceBranch: "B"
+assetsReady: false
 requiredArtifacts:
   modules: []
 ```
@@ -133,11 +149,11 @@ requiredArtifacts:
 读 `package.json`、构建配置、tsconfig、browserslist、样式方案、资源目录；运行：
 
 ```bash
-node .agents/skills/figma-to-code/scripts/check-mcp.mjs
+node .agents/skills/figma-to-code/scripts/check-mcp.mjs           # auto 模式加 --auto（要求浏览器截图能力）
 node .agents/skills/figma-to-code/scripts/scan-components.mjs --json
 ```
 
-在 skill 仓库内开发时，把路径替换为 `skills/figma-to-code/scripts/...`。探测细节见 [00](references/00-project-detection.md)。
+在 skill 仓库内开发时，把路径替换为 `skills/figma-to-code/scripts/...`。探测细节见 [00](references/00-project-detection.md)。auto 模式自动化脚本（`check-assets.mjs`/`gen-registry.mjs`/`shoot.mjs`/`visual-diff.mjs`/`computed-diff.mjs`）与一键编排见 [09](references/09-automation-pipeline.md)。
 
 ### 1 结构分析
 
@@ -153,7 +169,7 @@ node .agents/skills/figma-to-code/scripts/scan-components.mjs --json
 
 1. `get_design_context(fileKey, nodeId)`，逐字保存到 `.figma-to-code/preview/src/modules/<nodeIdSafe>.tsx`。
 2. `get_metadata` 或已保存 metadata 中记录该模块几何信息。
-3. 渲染模块 reference，保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。
+3. 用 `get_screenshot(nodeId)`（1x 内容、高清）抓取 Figma 原生真相基线，保存 `.figma-to-code/screenshots/<nodeIdSafe>/reference-preview.png`。auto 模式可选：渲染 `.tsx` 得 `reference-render.png` 并用 `visual-diff.mjs` 做基线自检。
 4. 运行 `node .agents/skills/figma-to-code/scripts/extract-spec.mjs .figma-to-code/preview/src/modules/<nodeIdSafe>.tsx --node-id <nodeId>`；保存输出摘要或在 `PROGRESS.md` 记录 `layoutRisk`。
 5. 在 `PROGRESS.md` 的 `requiredArtifacts.modules` 登记 `id`、`nodeIdSafe`、`referenceTsx`、`referencePreview`、`metadata`/`geometry`、`attributeCheck`、`layoutRisk`。
 6. 全部模块齐全后，设置 `currentGate: "facts-ready"`、`canEditProjectCode: true`，并运行 `flow-guard --before 3b`。
@@ -225,3 +241,4 @@ node .agents/skills/figma-to-code/scripts/scan-components.mjs --json
 - 多人协作：[06-team-workflow.md](references/06-team-workflow.md)
 - 抽象执行闭环：[07-worked-example.md](references/07-worked-example.md)
 - 属性校验：[08-attribute-verification.md](references/08-attribute-verification.md)
+- 一键自动化编排（auto 模式）：[09-automation-pipeline.md](references/09-automation-pipeline.md)
